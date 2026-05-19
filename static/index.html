@@ -1,0 +1,696 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>EmotiLearn — Engagement Monitor</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Mono:wght@300;400;500&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --bg:       #0a0c0f;
+    --surface:  #111318;
+    --border:   #1e2229;
+    --muted:    #3a4050;
+    --text:     #e8eaf0;
+    --sub:      #7a8090;
+    --accent:   #00e5c8;
+    --accent2:  #5b7fff;
+    --angry:    #ef4444;
+    --disgust:  #f97316;
+    --fear:     #a855f7;
+    --happy:    #22c55e;
+    --neutral:  #3b82f6;
+    --sad:      #6366f1;
+    --surprise: #eab308;
+    --radius:   14px;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Syne', sans-serif;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* ── GRID NOISE BACKGROUND ── */
+  body::before {
+    content: '';
+    position: fixed; inset: 0; z-index: 0;
+    background-image:
+      linear-gradient(rgba(0,229,200,.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0,229,200,.03) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none;
+  }
+
+  /* ── LAYOUT ── */
+  .shell { position: relative; z-index: 1; max-width: 1200px; margin: 0 auto; padding: 0 24px; }
+
+  /* ── HEADER ── */
+  header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 24px 0 20px;
+    border-bottom: 1px solid var(--border);
+  }
+  .logo {
+    display: flex; align-items: center; gap: 10px;
+  }
+  .logo-mark {
+    width: 36px; height: 36px; border-radius: 10px;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    display: grid; place-items: center;
+    font-size: 18px;
+  }
+  .logo-text { font-size: 20px; font-weight: 800; letter-spacing: -0.5px; }
+  .logo-text span { color: var(--accent); }
+
+  .tabs {
+    display: flex; background: var(--surface);
+    border: 1px solid var(--border); border-radius: 10px; padding: 4px; gap: 4px;
+  }
+  .tab {
+    padding: 7px 20px; border-radius: 7px; border: none; cursor: pointer;
+    font-family: 'Syne', sans-serif; font-size: 13px; font-weight: 600;
+    background: transparent; color: var(--sub); transition: all .2s;
+  }
+  .tab.active { background: var(--accent); color: #000; }
+
+  /* ── PAGES ── */
+  .page { display: none; padding: 32px 0 60px; }
+  .page.active { display: block; }
+
+  /* ══════════════════════════════════════════
+     STUDENT PAGE
+  ══════════════════════════════════════════ */
+  .student-grid {
+    display: grid;
+    grid-template-columns: 1fr 320px;
+    gap: 24px; align-items: start;
+  }
+
+  /* Camera card */
+  .cam-card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--radius); overflow: hidden;
+  }
+  .cam-header {
+    padding: 16px 20px; border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .cam-title { font-size: 14px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: var(--sub); }
+  .rec-dot {
+    width: 8px; height: 8px; border-radius: 50%; background: var(--angry);
+    display: none; animation: pulse-rec 1.2s ease-in-out infinite;
+  }
+  .rec-dot.on { display: block; }
+  @keyframes pulse-rec {
+    0%,100% { opacity: 1; } 50% { opacity: .3; }
+  }
+
+  .cam-body { position: relative; }
+  #videoEl {
+    width: 100%; display: block; background: #000;
+    aspect-ratio: 4/3; object-fit: cover;
+  }
+  #canvasEl { display: none; }
+
+  .cam-overlay {
+    position: absolute; bottom: 0; left: 0; right: 0;
+    padding: 16px 20px;
+    background: linear-gradient(transparent, rgba(0,0,0,.8));
+    display: flex; align-items: flex-end; justify-content: space-between;
+  }
+  .emotion-badge {
+    display: flex; align-items: center; gap: 10px;
+    background: rgba(0,0,0,.6); border: 1px solid var(--border);
+    padding: 10px 16px; border-radius: 40px;
+    backdrop-filter: blur(10px);
+    transition: border-color .3s;
+  }
+  .badge-emoji { font-size: 22px; line-height: 1; }
+  .badge-label { font-size: 16px; font-weight: 700; }
+  .badge-conf { font-size: 11px; font-family: 'DM Mono', monospace; color: var(--sub); }
+
+  .confidence-bar-wrap { width: 120px; }
+  .conf-label { font-size: 10px; font-family: 'DM Mono', monospace; color: var(--sub); margin-bottom: 4px; text-align: right; }
+  .conf-bar-bg { height: 4px; background: var(--muted); border-radius: 2px; overflow: hidden; }
+  .conf-bar-fill { height: 100%; width: 0%; border-radius: 2px; background: var(--accent); transition: width .4s; }
+
+  /* Controls */
+  .controls { padding: 16px 20px; border-top: 1px solid var(--border); display: flex; gap: 10px; }
+  .btn {
+    flex: 1; padding: 11px; border-radius: 9px; border: none;
+    font-family: 'Syne', sans-serif; font-size: 13px; font-weight: 700;
+    cursor: pointer; transition: all .2s; letter-spacing: .03em;
+  }
+  .btn-primary { background: var(--accent); color: #000; }
+  .btn-primary:hover { filter: brightness(1.1); }
+  .btn-danger  { background: var(--angry); color: #fff; }
+  .btn-danger:hover { filter: brightness(1.1); }
+  .btn-outline { background: transparent; color: var(--sub); border: 1px solid var(--border); }
+  .btn-outline:hover { border-color: var(--accent); color: var(--accent); }
+  .btn:disabled { opacity: .35; cursor: not-allowed; }
+
+  /* Sidebar */
+  .sidebar { display: flex; flex-direction: column; gap: 16px; }
+
+  .info-card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 20px;
+  }
+  .info-card h3 { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; color: var(--sub); margin-bottom: 14px; }
+
+  /* Live probability bars */
+  .prob-row { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+  .prob-name { font-size: 12px; font-family: 'DM Mono', monospace; width: 64px; color: var(--sub); }
+  .prob-track { flex: 1; height: 6px; background: var(--border); border-radius: 3px; overflow: hidden; }
+  .prob-fill   { height: 100%; width: 0%; border-radius: 3px; transition: width .4s; }
+  .prob-val    { font-size: 11px; font-family: 'DM Mono', monospace; width: 36px; text-align: right; color: var(--sub); }
+
+  /* Session stats */
+  .stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .stat-box {
+    background: var(--bg); border: 1px solid var(--border);
+    border-radius: 10px; padding: 12px;
+  }
+  .stat-val { font-size: 22px; font-weight: 800; }
+  .stat-lbl { font-size: 10px; color: var(--sub); margin-top: 2px; font-family: 'DM Mono', monospace; }
+  #engPct   { color: var(--happy); }
+  #frameCnt { color: var(--accent); }
+
+  /* Mini timeline */
+  #miniTimeline { display: flex; gap: 4px; flex-wrap: wrap; min-height: 24px; margin-top: 4px; }
+  .tl-dot {
+    width: 20px; height: 20px; border-radius: 5px; font-size: 11px;
+    display: grid; place-items: center; cursor: default;
+    transition: transform .15s;
+  }
+  .tl-dot:hover { transform: scale(1.2); }
+
+  /* ══════════════════════════════════════════
+     TEACHER PAGE
+  ══════════════════════════════════════════ */
+  .teacher-header {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 28px;
+  }
+  .teacher-header h2 { font-size: 26px; font-weight: 800; letter-spacing: -0.5px; }
+  .session-input-row { display: flex; gap: 10px; align-items: center; }
+  #sessionIdInput {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 9px; padding: 9px 14px; color: var(--text);
+    font-family: 'DM Mono', monospace; font-size: 13px; width: 200px;
+    outline: none; transition: border-color .2s;
+  }
+  #sessionIdInput:focus { border-color: var(--accent); }
+
+  /* KPI row */
+  .kpi-row { display: grid; grid-template-columns: repeat(4,1fr); gap: 16px; margin-bottom: 24px; }
+  .kpi-card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 20px 22px;
+  }
+  .kpi-label { font-size: 11px; text-transform: uppercase; letter-spacing: .07em; color: var(--sub); margin-bottom: 8px; }
+  .kpi-value { font-size: 32px; font-weight: 800; }
+  .kpi-sub   { font-size: 12px; color: var(--sub); margin-top: 4px; }
+
+  /* Charts row */
+  .charts-row { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 24px; }
+  .chart-card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 20px;
+  }
+  .chart-card h3 { font-size: 13px; font-weight: 700; color: var(--sub); text-transform: uppercase; letter-spacing: .06em; margin-bottom: 18px; }
+
+  /* Donut chart */
+  #donutSvg { display: block; margin: 0 auto; }
+  .donut-legend { display: flex; flex-direction: column; gap: 8px; margin-top: 16px; }
+  .legend-row { display: flex; align-items: center; justify-content: space-between; font-size: 12px; }
+  .legend-dot { width: 10px; height: 10px; border-radius: 50%; margin-right: 8px; flex-shrink: 0; }
+  .legend-name { display: flex; align-items: center; color: var(--sub); }
+  .legend-pct  { font-family: 'DM Mono', monospace; font-size: 12px; }
+
+  /* Bar chart */
+  .bar-chart { display: flex; flex-direction: column; gap: 10px; }
+  .bar-row   { display: flex; align-items: center; gap: 10px; }
+  .bar-lbl   { font-size: 12px; font-family: 'DM Mono', monospace; width: 72px; color: var(--sub); }
+  .bar-track { flex: 1; height: 20px; background: var(--border); border-radius: 4px; overflow: hidden; position: relative; }
+  .bar-fill  { height: 100%; border-radius: 4px; transition: width .6s cubic-bezier(.34,1.56,.64,1); display: flex; align-items: center; padding-left: 8px; }
+  .bar-fill span { font-size: 10px; font-family: 'DM Mono', monospace; color: rgba(0,0,0,.7); font-weight: 700; }
+
+  /* Timeline heatmap */
+  .timeline-card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 24px; margin-bottom: 24px;
+  }
+  .timeline-card h3 { font-size: 13px; font-weight: 700; color: var(--sub); text-transform: uppercase; letter-spacing: .06em; margin-bottom: 18px; }
+  #timelineTrack {
+    display: flex; gap: 6px; flex-wrap: wrap;
+  }
+  .tl-bucket {
+    display: flex; flex-direction: column; align-items: center; gap: 4px; cursor: default;
+  }
+  .tl-cell {
+    width: 48px; height: 48px; border-radius: 10px;
+    display: grid; place-items: center; font-size: 22px;
+    border: 2px solid transparent;
+    transition: transform .15s, border-color .15s;
+  }
+  .tl-cell:hover { transform: scale(1.15); border-color: rgba(255,255,255,.2); }
+  .tl-time { font-size: 10px; font-family: 'DM Mono', monospace; color: var(--sub); }
+
+  /* Frame list */
+  .frames-card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 24px;
+  }
+  .frames-card h3 { font-size: 13px; font-weight: 700; color: var(--sub); text-transform: uppercase; letter-spacing: .06em; margin-bottom: 16px; }
+  #frameList { max-height: 260px; overflow-y: auto; display: flex; flex-direction: column; gap: 4px; }
+  #frameList::-webkit-scrollbar { width: 4px; }
+  #frameList::-webkit-scrollbar-track { background: transparent; }
+  #frameList::-webkit-scrollbar-thumb { background: var(--muted); border-radius: 2px; }
+  .frame-row {
+    display: flex; align-items: center; gap: 12px;
+    padding: 8px 12px; border-radius: 8px;
+    font-size: 12px; font-family: 'DM Mono', monospace;
+    background: var(--bg);
+  }
+  .frame-t { color: var(--sub); width: 48px; }
+  .frame-em { font-size: 16px; }
+  .frame-label { flex: 1; }
+  .frame-conf { color: var(--sub); }
+
+  /* Empty / error states */
+  .empty-state {
+    text-align: center; padding: 60px 24px; color: var(--sub);
+  }
+  .empty-state .big { font-size: 48px; margin-bottom: 12px; }
+  .empty-state p { font-size: 14px; }
+
+  /* Toast */
+  #toast {
+    position: fixed; bottom: 24px; right: 24px; z-index: 999;
+    background: var(--surface); border: 1px solid var(--border);
+    padding: 12px 20px; border-radius: 10px; font-size: 13px;
+    box-shadow: 0 8px 32px rgba(0,0,0,.5);
+    transform: translateY(80px); opacity: 0;
+    transition: all .3s cubic-bezier(.34,1.56,.64,1);
+    pointer-events: none;
+  }
+  #toast.show { transform: translateY(0); opacity: 1; }
+</style>
+</head>
+<body>
+<div class="shell">
+
+  <!-- HEADER -->
+  <header>
+    <div class="logo">
+      <div class="logo-mark">📡</div>
+      <div class="logo-text">Emoti<span>Learn</span></div>
+    </div>
+    <div class="tabs">
+      <button class="tab active" onclick="switchPage('student')">Student View</button>
+      <button class="tab" onclick="switchPage('teacher')">Teacher Dashboard</button>
+    </div>
+  </header>
+
+  <!-- ══ STUDENT PAGE ══ -->
+  <div id="pageStudent" class="page active">
+    <div class="student-grid">
+
+      <!-- Camera card -->
+      <div class="cam-card">
+        <div class="cam-header">
+          <span class="cam-title">Live Feed</span>
+          <div class="rec-dot" id="recDot"></div>
+        </div>
+        <div class="cam-body">
+          <video id="videoEl" autoplay muted playsinline></video>
+          <canvas id="canvasEl"></canvas>
+          <div class="cam-overlay">
+            <div class="emotion-badge" id="emotionBadge">
+              <span class="badge-emoji" id="badgeEmoji">—</span>
+              <div>
+                <div class="badge-label" id="badgeLabel">Waiting…</div>
+                <div class="badge-conf" id="badgeConf">—</div>
+              </div>
+            </div>
+            <div class="confidence-bar-wrap">
+              <div class="conf-label" id="confPct">0%</div>
+              <div class="conf-bar-bg"><div class="conf-bar-fill" id="confFill"></div></div>
+            </div>
+          </div>
+        </div>
+        <div class="controls">
+          <button class="btn btn-primary" id="btnStart" onclick="startSession()">▶ Start Session</button>
+          <button class="btn btn-danger"  id="btnStop"  onclick="stopSession()" disabled>■ Stop</button>
+          <button class="btn btn-outline" id="btnView"  onclick="viewMySession()" disabled>View Report</button>
+        </div>
+      </div>
+
+      <!-- Sidebar -->
+      <div class="sidebar">
+        <div class="info-card">
+          <h3>Live Probabilities</h3>
+          <div id="probBars"></div>
+        </div>
+        <div class="info-card">
+          <h3>Session Stats</h3>
+          <div class="stat-grid">
+            <div class="stat-box"><div class="stat-val" id="engPct">—</div><div class="stat-lbl">Engaged</div></div>
+            <div class="stat-box"><div class="stat-val" id="frameCnt">0</div><div class="stat-lbl">Frames</div></div>
+          </div>
+        </div>
+        <div class="info-card">
+          <h3>Emotion Timeline</h3>
+          <div id="miniTimeline"></div>
+        </div>
+        <div class="info-card" style="font-size:12px; color:var(--sub); line-height:1.6;">
+          <h3>Session ID</h3>
+          <code id="sessionIdDisplay" style="font-family:'DM Mono',monospace; color:var(--accent); font-size:11px;">—</code>
+          <p style="margin-top:8px;">Share this with your teacher to pull up your report in the dashboard.</p>
+        </div>
+      </div>
+
+    </div>
+  </div><!-- /student -->
+
+  <!-- ══ TEACHER PAGE ══ -->
+  <div id="pageTeacher" class="page">
+    <div class="teacher-header">
+      <h2>Session Report</h2>
+      <div class="session-input-row">
+        <input id="sessionIdInput" type="text" placeholder="Enter session ID…" />
+        <button class="btn btn-primary" style="flex:none;padding:9px 20px;" onclick="loadReport()">Load</button>
+      </div>
+    </div>
+
+    <div id="reportContent">
+      <div class="empty-state">
+        <div class="big">🔍</div>
+        <p>Enter a session ID above to load the engagement report.</p>
+      </div>
+    </div>
+  </div><!-- /teacher -->
+
+</div><!-- /shell -->
+
+<div id="toast"></div>
+
+<script>
+// ── State ───────────────────────────────────────────────────────────────────
+const API = '';   // same origin
+let stream       = null;
+let intervalId   = null;
+let sessionId    = null;
+let frameCount   = 0;
+let engagedCount = 0;
+let miniDots     = [];
+
+const EMOTIONS = ["Angry","Disgust","Fear","Happy","Neutral","Sad","Surprise"];
+const COLORS   = {
+  Angry:"#ef4444",Disgust:"#f97316",Fear:"#a855f7",
+  Happy:"#22c55e",Neutral:"#3b82f6",Sad:"#6366f1",Surprise:"#eab308"
+};
+const EMOJIS   = {
+  Angry:"😠",Disgust:"🤢",Fear:"😨",Happy:"😊",Neutral:"😐",Sad:"😢",Surprise:"😲"
+};
+
+// ── Page switch ─────────────────────────────────────────────────────────────
+function switchPage(name) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.getElementById('page' + name.charAt(0).toUpperCase() + name.slice(1)).classList.add('active');
+  event.target.classList.add('active');
+}
+
+// ── Build probability bars (once) ───────────────────────────────────────────
+function buildProbBars() {
+  const el = document.getElementById('probBars');
+  el.innerHTML = EMOTIONS.map(e => `
+    <div class="prob-row">
+      <span class="prob-name">${e}</span>
+      <div class="prob-track">
+        <div class="prob-fill" id="prob_${e}" style="background:${COLORS[e]}"></div>
+      </div>
+      <span class="prob-val" id="probv_${e}">0%</span>
+    </div>`).join('');
+}
+buildProbBars();
+
+// ── Session management ──────────────────────────────────────────────────────
+async function startSession() {
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({ video: true });
+  } catch (e) {
+    toast('❌ Camera access denied.'); return;
+  }
+  const vid = document.getElementById('videoEl');
+  vid.srcObject = stream;
+
+  sessionId    = 'sess_' + Date.now();
+  frameCount   = 0;
+  engagedCount = 0;
+  miniDots     = [];
+  document.getElementById('sessionIdDisplay').textContent = sessionId;
+  document.getElementById('miniTimeline').innerHTML = '';
+  document.getElementById('frameCnt').textContent = '0';
+  document.getElementById('engPct').textContent   = '—';
+  document.getElementById('recDot').classList.add('on');
+  document.getElementById('btnStart').disabled = true;
+  document.getElementById('btnStop').disabled  = false;
+  document.getElementById('btnView').disabled  = true;
+
+  intervalId = setInterval(captureAndPredict, 2000);
+  toast('▶ Session started!');
+}
+
+function stopSession() {
+  clearInterval(intervalId); intervalId = null;
+  if (stream) { stream.getTracks().forEach(t => t.stop()); stream = null; }
+  document.getElementById('recDot').classList.remove('on');
+  document.getElementById('btnStart').disabled = false;
+  document.getElementById('btnStop').disabled  = true;
+  document.getElementById('btnView').disabled  = false;
+  toast('■ Session saved. Click "View Report".');
+}
+
+function viewMySession() {
+  document.getElementById('sessionIdInput').value = sessionId;
+  switchPage('teacher');
+  document.querySelectorAll('.tab')[1].classList.add('active');
+  document.querySelectorAll('.tab')[0].classList.remove('active');
+  loadReport();
+}
+
+// ── Capture frame → predict ─────────────────────────────────────────────────
+async function captureAndPredict() {
+  const vid = document.getElementById('videoEl');
+  const can = document.getElementById('canvasEl');
+  can.width  = vid.videoWidth  || 128;
+  can.height = vid.videoHeight || 128;
+  can.getContext('2d').drawImage(vid, 0, 0, can.width, can.height);
+  const b64 = can.toDataURL('image/jpeg', 0.7);
+
+  let res;
+  try {
+    const r = await fetch(`${API}/predict`, {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ image: b64, session_id: sessionId, timestamp: Date.now()/1000 })
+    });
+    res = await r.json();
+  } catch (e) { console.error(e); return; }
+
+  updateStudentUI(res);
+}
+
+// ── Update student UI ───────────────────────────────────────────────────────
+function updateStudentUI(res) {
+  const { emotion, confidence, emoji, color, all } = res;
+
+  // Badge
+  document.getElementById('badgeEmoji').textContent  = emoji;
+  document.getElementById('badgeLabel').textContent  = emotion;
+  document.getElementById('badgeConf').textContent   = `${(confidence*100).toFixed(1)}% confidence`;
+  document.getElementById('emotionBadge').style.borderColor = color;
+
+  // Confidence bar
+  const pct = Math.round(confidence * 100);
+  document.getElementById('confFill').style.width    = pct + '%';
+  document.getElementById('confFill').style.background = color;
+  document.getElementById('confPct').textContent     = pct + '%';
+
+  // Prob bars
+  EMOTIONS.forEach(e => {
+    const v = all[e] || 0;
+    document.getElementById(`prob_${e}`).style.width = (v*100).toFixed(1) + '%';
+    document.getElementById(`probv_${e}`).textContent = (v*100).toFixed(0) + '%';
+  });
+
+  // Stats
+  frameCount++;
+  if (res.level === 'engaged') engagedCount++;
+  document.getElementById('frameCnt').textContent = frameCount;
+  document.getElementById('engPct').textContent   = Math.round(engagedCount/frameCount*100) + '%';
+
+  // Mini timeline dot
+  const dot = document.createElement('div');
+  dot.className   = 'tl-dot';
+  dot.textContent = emoji;
+  dot.style.background = color + '33';
+  dot.title = emotion;
+  document.getElementById('miniTimeline').appendChild(dot);
+  dot.scrollIntoView({ behavior:'smooth', block:'nearest' });
+}
+
+// ── Teacher report ──────────────────────────────────────────────────────────
+async function loadReport() {
+  const sid = document.getElementById('sessionIdInput').value.trim();
+  if (!sid) { toast('Enter a session ID first.'); return; }
+
+  let data;
+  try {
+    const r = await fetch(`${API}/session/${encodeURIComponent(sid)}`);
+    if (!r.ok) throw new Error(await r.text());
+    data = await r.json();
+  } catch(e) {
+    toast('❌ Session not found.'); return;
+  }
+
+  renderReport(data);
+}
+
+function renderReport(data) {
+  const { summary, timeline, frames } = data;
+  if (!frames || frames.length === 0) {
+    document.getElementById('reportContent').innerHTML = `
+      <div class="empty-state"><div class="big">📭</div><p>No frames recorded yet for this session.</p></div>`;
+    return;
+  }
+
+  const { dominant_emotion, emotion_counts, level_counts, engagement_pct } = summary;
+  const totalFrames = frames.length;
+  const durationS   = frames[frames.length-1].timestamp - frames[0].timestamp;
+  const durationMin = (durationS / 60).toFixed(1);
+
+  // ── KPIs
+  const kpiHtml = `
+  <div class="kpi-row">
+    <div class="kpi-card">
+      <div class="kpi-label">Engagement</div>
+      <div class="kpi-value" style="color:var(--happy)">${engagement_pct}%</div>
+      <div class="kpi-sub">of frames engaged</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">Dominant Emotion</div>
+      <div class="kpi-value">${EMOJIS[dominant_emotion] || '—'}</div>
+      <div class="kpi-sub">${dominant_emotion}</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">Duration</div>
+      <div class="kpi-value" style="color:var(--accent)">${durationMin}<span style="font-size:16px;color:var(--sub)"> min</span></div>
+      <div class="kpi-sub">${totalFrames} frames captured</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">Struggling</div>
+      <div class="kpi-value" style="color:var(--angry)">${Math.round((level_counts.struggling+level_counts.frustrated)/totalFrames*100)}%</div>
+      <div class="kpi-sub">frustrated + struggling</div>
+    </div>
+  </div>`;
+
+  // ── Donut chart (SVG)
+  const donutData = Object.entries(emotion_counts).sort((a,b)=>b[1]-a[1]);
+  const total = donutData.reduce((s,[,v])=>s+v,0);
+  let sweep = -90; // start top
+  const R=60, cx=80, cy=80, stroke=22;
+  const circumference = 2*Math.PI*R;
+  let donutSlices = '';
+  donutData.forEach(([em, count]) => {
+    const frac = count/total;
+    const dasharray = (frac * circumference).toFixed(2);
+    const dashoffset = (circumference * (1 - frac * 0 + sweep/360)).toFixed(2);
+    const angle = sweep * Math.PI/180;
+    donutSlices += `<circle cx="${cx}" cy="${cy}" r="${R}"
+      fill="none" stroke="${COLORS[em]}" stroke-width="${stroke}"
+      stroke-dasharray="${dasharray} ${circumference}"
+      stroke-dashoffset="${-(sweep/360*circumference).toFixed(2)}"
+      transform="rotate(-90 ${cx} ${cy})"
+      opacity="0.9"/>`;
+    sweep += frac*360;
+  });
+  const legendHtml = donutData.map(([em,count]) => `
+    <div class="legend-row">
+      <span class="legend-name"><span class="legend-dot" style="background:${COLORS[em]}"></span>${em}</span>
+      <span class="legend-pct">${(count/total*100).toFixed(0)}%</span>
+    </div>`).join('');
+
+  // ── Bar chart (levels)
+  const levelColors = { engaged:'#22c55e', confused:'#eab308', struggling:'#6366f1', frustrated:'#ef4444' };
+  const maxLevel = Math.max(...Object.values(level_counts));
+  const barHtml = Object.entries(level_counts).map(([level, count]) => `
+    <div class="bar-row">
+      <span class="bar-lbl">${level}</span>
+      <div class="bar-track">
+        <div class="bar-fill" style="width:${(count/maxLevel*100).toFixed(1)}%; background:${levelColors[level]}">
+          <span>${count}</span>
+        </div>
+      </div>
+    </div>`).join('');
+
+  // ── Timeline heatmap
+  const timelineCells = (timeline||[]).map(b => `
+    <div class="tl-bucket" title="${b.dominant_emotion} @ ${b.time_label}">
+      <div class="tl-cell" style="background:${b.color}22; border-color:${b.color}44">${b.emoji}</div>
+      <span class="tl-time">${b.time_label}</span>
+    </div>`).join('');
+
+  // ── Frame list (last 50)
+  const recent = [...frames].reverse().slice(0,50);
+  const frameRowsHtml = recent.map(f => {
+    const t = new Date(f.timestamp*1000).toLocaleTimeString();
+    return `<div class="frame-row">
+      <span class="frame-t">${t}</span>
+      <span class="frame-em">${EMOJIS[f.emotion]||'?'}</span>
+      <span class="frame-label" style="color:${COLORS[f.emotion]}">${f.emotion}</span>
+      <span class="frame-conf">${(f.confidence*100).toFixed(0)}%</span>
+    </div>`;
+  }).join('');
+
+  document.getElementById('reportContent').innerHTML = `
+    ${kpiHtml}
+    <div class="charts-row">
+      <div class="chart-card">
+        <h3>Emotion Distribution</h3>
+        <svg id="donutSvg" width="160" height="160" viewBox="0 0 160 160">${donutSlices}</svg>
+        <div class="donut-legend">${legendHtml}</div>
+      </div>
+      <div class="chart-card">
+        <h3>Engagement Levels</h3>
+        <div class="bar-chart">${barHtml}</div>
+      </div>
+    </div>
+    <div class="timeline-card">
+      <h3>Emotion Timeline (30-second buckets)</h3>
+      <div id="timelineTrack">${timelineCells || '<span style="color:var(--sub);font-size:13px;">Not enough data for timeline.</span>'}</div>
+    </div>
+    <div class="frames-card">
+      <h3>Recent Frames</h3>
+      <div id="frameList">${frameRowsHtml}</div>
+    </div>`;
+}
+
+// ── Toast ────────────────────────────────────────────────────────────────────
+function toast(msg, dur=2800) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  setTimeout(() => el.classList.remove('show'), dur);
+}
+</script>
+</body>
+</html>

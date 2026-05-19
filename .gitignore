@@ -1,0 +1,16 @@
+# Virtual environment
+venv/
+env/
+.venv/
+
+# Python cache
+__pycache__/
+*.py[cod]
+
+# IDE / Editor files (optional but recommended)
+.vscode/
+.idea/
+.DS_Store
+
+# Large model files (If you don't want these in your repo)
+# best_emotion_model.h5

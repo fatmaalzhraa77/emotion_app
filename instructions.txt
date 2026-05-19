@@ -1,0 +1,99 @@
+===============================================================
+  EmotiLearn — Student Engagement Monitor
+  How to Run
+===============================================================
+
+REQUIREMENTS
+------------
+- Python 3.10 installed
+- All files in the emotion_app/ folder:
+    app.py
+    best_emotion_model.h5
+    test.py
+    requirements.txt
+    static/index.html
+    venv/
+
+
+---------------------------------------------------------------
+  STEP 1 — Start the server
+---------------------------------------------------------------
+
+Open a terminal inside the emotion_app/ folder and run:
+
+    venv\Scripts\python.exe -m uvicorn app:app --port 8000
+
+Wait until you see:
+    ✅ Model ready.
+    INFO: Uvicorn running on http://0.0.0.0:8000
+
+Leave this terminal open while using the app.
+
+
+---------------------------------------------------------------
+  STEP 2 — Open the app
+---------------------------------------------------------------
+
+Open your browser and go to:
+
+    http://127.0.0.1:8000
+
+
+---------------------------------------------------------------
+  STEP 3 — Using the app
+---------------------------------------------------------------
+
+STUDENT VIEW:
+  1. Click "Start Session"
+  2. Allow camera access when prompted
+  3. The model detects your emotion every 2 seconds
+  4. Note your Session ID shown in the sidebar
+  5. Click "Stop" when done
+  6. Click "View Report" to see your results
+
+TEACHER DASHBOARD:
+  1. Click the "Teacher Dashboard" tab
+  2. Enter the student's Session ID
+  3. Click "Load" to view:
+     - Engagement percentage
+     - Dominant emotion
+     - Emotion distribution chart
+     - 30-second timeline heatmap
+     - Full frame-by-frame log
+
+
+---------------------------------------------------------------
+  OPTIONAL — Test without camera
+---------------------------------------------------------------
+
+With the server running, open a second terminal and run:
+
+    venv\Scripts\python.exe test.py
+
+Expected output:
+    Health: {'status': 'ok', 'model_loaded': True}
+    Prediction: {'emotion': '...', 'confidence': ..., ...}
+
+
+---------------------------------------------------------------
+  STOPPING THE SERVER
+---------------------------------------------------------------
+
+In the terminal where the server is running, press:
+
+    Ctrl + C
+
+
+===============================================================
+  EMOTIONS DETECTED
+===============================================================
+
+  😠 Angry    → Frustrated
+  🤢 Disgust  → Frustrated
+  😨 Fear     → Struggling
+  😊 Happy    → Engaged
+  😐 Neutral  → Engaged
+  😢 Sad      → Struggling
+  😲 Surprise → Confused
+
+===============================================================
